@@ -9,4 +9,6 @@ edition = "2021"
 rand = "0.8.4"
 
 [dependencies.sdl2]
-git ="https://github.com/rust-sdl2/rust-sdl2"
+version = "0.34"
+default-features = false
+features = ["mixer"]
