@@ -1,41 +1,49 @@
 pub mod window_driver {
-    use sdl2::{
-        audio::{AudioCallback, AudioDevice, AudioSpecDesired},
-        render::Canvas,
-        video::Window,
-        EventPump,
-    };
-
-    pub struct SquareWave {
-        phase_inc: f32,
-        phase: f32,
-        volume: f32,
-    }
-
-    impl AudioCallback for SquareWave {
-        type Channel = f32;
-
-        fn callback(&mut self, out: &mut [f32]) {
-            // Generate a square wave
-            for x in out.iter_mut() {
-                *x = self.volume * if self.phase < 0.5 { 1.0 } else { -1.0 };
-                self.phase = (self.phase + self.phase_inc) % 1.0;
-            }
-        }
-    }
+    use crate::processor::chip_8::Chip8;
+    use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump, Sdl};
 
     pub struct Win {
-        pub event_pump: EventPump,
-        pub canvas: Canvas<Window>,
-        pub audio_device: AudioDevice<SquareWave>,
+        event_pump: EventPump,
+        canvas: Canvas<Window>,
+        running: bool,
     }
 
     impl Win {
-        pub fn init() -> Result<Win, String> {
-            let sdl_context = sdl2::init()?;
-            let video_subsystem = sdl_context.video()?;
+        pub const fn is_running(&self) -> bool {
+            self.running
+        }
 
-            let window = video_subsystem
+        pub fn handle_events(&mut self, chip8: &mut Chip8) {
+            for event in self.event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => self.running = false,
+                    Event::KeyDown { keycode: code, .. } => {
+                        chip8.set_action(code.unwrap(), 1);
+                    }
+                    Event::KeyUp { keycode: code, .. } => {
+                        chip8.set_action(code.unwrap(), 0);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        pub fn draw(&mut self, chip8: &mut Chip8) {
+            if chip8.should_draw() {
+                self.canvas.clear();
+                chip8.update_quads(&mut self.canvas);
+                chip8.draw_done();
+                self.canvas.present();
+            }
+        }
+
+        pub fn new(sdl_context: &Sdl) -> Result<Win, String> {
+            let window = sdl_context
+                .video()?
                 .window("Chip8 Emulator", 64 * 20, 32 * 20)
                 .position_centered()
                 .build()
@@ -48,28 +56,10 @@ pub mod window_driver {
                 .build()
                 .map_err(|e| e.to_string())?;
 
-            // audio
-            let audio_subsystem = sdl_context.audio()?;
-
-            let desired_spec = AudioSpecDesired {
-                freq: Some(44100),
-                channels: Some(1), // mono
-                samples: None,     // default sample size
-            };
-
-            let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-                // initialize the audio callback
-                SquareWave {
-                    phase_inc: 240. / spec.freq as f32,
-                    phase: 0.,
-                    volume: 0.25,
-                }
-            })?;
-
             Ok(Win {
                 event_pump: sdl_context.event_pump()?,
                 canvas,
-                audio_device: device,
+                running: true,
             })
         }
     }

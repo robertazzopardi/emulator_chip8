@@ -1,8 +1,7 @@
 pub mod chip_8 {
-    use std::fs;
-
     use rand::Rng;
     use sdl2::{keyboard::Keycode, rect::Rect, render::Canvas, video::Window};
+    use std::fs;
 
     const CHIP8_FONTSET: [u8; 80] = [
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -50,15 +49,21 @@ pub mod chip_8 {
         pc: u16,
         gfx: [u8; 64 * 32],
         delay_timer: u8,
-        pub sound_timer: u8,
+        sound_timer: u8,
         stack: [u16; 16],
         sp: u16,
         key: [u8; 16],
-        pub draw_flag: bool,
+        draw_flag: bool,
+    }
+
+    impl Default for Chip8 {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl Chip8 {
-        pub fn init() -> Chip8 {
+        pub fn new() -> Chip8 {
             let mut memory: [u8; 4096] = [0; 4096];
 
             memory[..80].clone_from_slice(&CHIP8_FONTSET[..80]);
@@ -79,18 +84,29 @@ pub mod chip_8 {
             }
         }
 
+        pub const fn should_play_sound(&self) -> bool {
+            self.sound_timer != 0
+        }
+
+        pub const fn should_draw(&self) -> bool {
+            self.draw_flag
+        }
+
+        pub fn draw_done(&mut self) {
+            self.draw_flag = false
+        }
+
         pub fn load(&mut self, path: &str) {
             let data = fs::read(path).expect("Unable to read file");
             if (4096 - 512) > data.len() {
-                for (i, mem) in data.iter().enumerate() {
-                    self.memory[i + 512] = *mem;
-                }
+                self.memory[512..512 + data.len()].clone_from_slice(&data[..data.len()]);
             } else {
                 // too large
+                println!("Cartridge too large!");
             }
         }
 
-        pub fn emulate(&mut self) {
+        pub fn cycle(&mut self) {
             // Fetch opcode
             // self.opcode = self.memory[self.pc as usize] << 8 | self.memory[(self.pc + 1) as usize];
             self.opcode = (self.memory[self.pc as usize] as u16) << 8

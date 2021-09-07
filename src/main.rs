@@ -1,56 +1,34 @@
-pub mod chip8;
+pub mod audio;
+pub mod processor;
 pub mod window;
 
 extern crate sdl2;
 
-use chip8::chip_8::Chip8;
-use sdl2::{event::Event, keyboard::Keycode};
+use audio::audio_driver::Audio;
+use processor::chip_8::Chip8;
 use std::env;
 use window::window_driver::Win;
 
 fn main() -> Result<(), String> {
-    let args: Vec<String> = env::args().collect();
-    let path = &args[1];
+    let path = &env::args().collect::<Vec<String>>()[1];
 
-    let mut window = Win::init()?;
+    let sdl_context = sdl2::init()?;
 
-    let mut chip8 = Chip8::init();
+    let mut window = Win::new(&sdl_context)?;
+
+    let mut chip8 = Chip8::new();
     chip8.load(path);
 
-    'running: loop {
-        for event in window.event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                Event::KeyDown { keycode: code, .. } => {
-                    chip8.set_action(code.unwrap(), 1);
-                }
-                Event::KeyUp { keycode: code, .. } => {
-                    chip8.set_action(code.unwrap(), 0);
-                }
-                _ => {}
-            }
-        }
+    let audio_device = Audio::new(&sdl_context.audio()?);
 
-        chip8.emulate();
+    while window.is_running() {
+        window.handle_events(&mut chip8);
 
-        if chip8.sound_timer != 0 {
-            // play
-            window.audio_device.resume();
-        } else {
-            // pause
-            window.audio_device.pause();
-        }
+        chip8.cycle();
 
-        if chip8.draw_flag {
-            window.canvas.clear();
-            chip8.update_quads(&mut window.canvas);
-            window.canvas.present();
-            chip8.draw_flag = false;
-        }
+        audio_device.play(&mut chip8);
+
+        window.draw(&mut chip8);
     }
 
     Ok(())
