@@ -12,7 +12,7 @@ use window::window_driver::Win;
 fn main() -> Result<(), String> {
     let args = &env::args().collect::<Vec<String>>();
     if args.len() == 1 {
-        Err::<(), String>("Please provide a rom to run!".to_string())?;
+        return Err("Please provide a rom to run!".to_string());
     }
 
     let sdl_context = sdl2::init()?;
