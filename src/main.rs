@@ -10,16 +10,19 @@ use std::env;
 use window::window_driver::Win;
 
 fn main() -> Result<(), String> {
-    let path = &env::args().collect::<Vec<String>>()[1];
+    let args = &env::args().collect::<Vec<String>>();
+    if args.len() == 1 {
+        Err::<(), String>("Please provide a rom to run!".to_string())?;
+    }
 
     let sdl_context = sdl2::init()?;
+
+    let audio_device = Audio::new(&sdl_context.audio()?);
 
     let mut window = Win::new(&sdl_context)?;
 
     let mut chip8 = Chip8::new();
-    chip8.load(path);
-
-    let audio_device = Audio::new(&sdl_context.audio()?);
+    chip8.load(&args[1])?;
 
     while window.is_running() {
         window.handle_events(&mut chip8);

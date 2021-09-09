@@ -96,13 +96,14 @@ pub mod chip_8 {
             self.draw_flag = false
         }
 
-        pub fn load(&mut self, path: &str) {
+        pub fn load(&mut self, path: &str) -> Result<(), String> {
             let data = fs::read(path).expect("Unable to read file");
             if (4096 - 512) > data.len() {
                 self.memory[512..512 + data.len()].clone_from_slice(&data[..data.len()]);
+                Ok(())
             } else {
                 // too large
-                println!("Cartridge too large!");
+                Err("Could Not Load Rom, It's too large".to_string())
             }
         }
 
@@ -478,21 +479,20 @@ pub mod chip_8 {
         }
 
         pub fn update_quads(&mut self, canvas: &mut Canvas<Window>) {
+            canvas.set_draw_color(sdl2::pixels::Color::BLACK);
+
+            let size = canvas.window().size();
+            let _background = canvas.fill_rect(Rect::new(0, 0, size.0, size.1));
+
             for y in 0..32 {
+                let y_offset = y * 64;
                 for x in 0..64 {
-                    if self.gfx[(y * 64) + x] == 0 {
-                        canvas.set_draw_color(sdl2::pixels::Color::BLACK);
-                    } else {
+                    if self.gfx[y_offset + x] == 1 {
                         canvas.set_draw_color(sdl2::pixels::Color::WHITE);
+
+                        let _pixel =
+                            canvas.fill_rect(Rect::new((x * 20) as i32, (y * 20) as i32, 20, 20));
                     }
-
-                    // let _ = canvas.draw_point(Point::new(x as i32, y as i32));
-
-                    let x = (x as u32) * 20;
-                    let y = (y as u32) * 20;
-
-                    // self.canvas.set_draw_color(color(col));
-                    let _ = canvas.fill_rect(Rect::new(x as i32, y as i32, 20, 20));
                 }
             }
         }
