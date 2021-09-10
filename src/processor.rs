@@ -1,33 +1,3 @@
-macro_rules! skip_instruction {
-    ($self:expr, $op:tt, $sh:expr) => {
-        if $self.g_reg[$sh as usize] $op ($self.opcode & 0x00FF) as u8 {
-            $self.pc += 4;
-        } else {
-            $self.pc += 2;
-        }
-    };
-}
-
-macro_rules! skip_instruction4 {
-    ($self:expr, $op:tt, $sh8:expr, $sh4:expr) => {
-        if $self.g_reg[$sh8 as usize] $op $self.g_reg[$sh4 as usize] {
-            $self.pc += 4;
-        } else {
-            $self.pc += 2;
-        }
-    };
-}
-
-macro_rules! skip_instruction_key_press {
-    ($self:expr, $op:tt, $sh8:expr) => {
-        if $self.key[($self.g_reg[$sh8 as usize]) as usize] $op 0 {
-            $self.pc += 4;
-        } else {
-            $self.pc += 2;
-        }
-    };
-}
-
 pub mod chip_8 {
     use rand::Rng;
     use sdl2::{keyboard::Keycode, rect::Rect, render::Canvas, video::Window};
@@ -52,6 +22,7 @@ pub mod chip_8 {
         0xF0, 0x80, 0xF0, 0x80, 0x80, // F
     ];
 
+    // Preserve this order
     const KEY_ORDER: [Keycode; 16] = [
         Keycode::X,
         Keycode::Num1,
@@ -70,6 +41,44 @@ pub mod chip_8 {
         Keycode::F,
         Keycode::V,
     ];
+
+    macro_rules! skip_instruction {
+        ($self:expr, $op:tt, $sh:expr) => {
+            if $self.g_reg[$sh as usize] $op ($self.opcode & 0x00FF) as u8 {
+                $self.pc += 4;
+            } else {
+                $self.pc += 2;
+            }
+        };
+        ($self:expr, $op:tt, $sh8:expr, $sh4:expr) => {
+            if $self.g_reg[$sh8 as usize] $op $self.g_reg[$sh4 as usize] {
+                $self.pc += 4;
+            } else {
+                $self.pc += 2;
+            }
+        };
+    }
+
+    macro_rules! skip_instruction_key_press {
+        ($self:expr, $op:tt, $sh8:expr) => {
+            if $self.key[($self.g_reg[$sh8 as usize]) as usize] $op 0 {
+                $self.pc += 4;
+            } else {
+                $self.pc += 2;
+            }
+        };
+    }
+
+    macro_rules! update_register {
+        ($self:expr, $op:tt, $left:expr) => {
+            $self.g_reg[$left as usize] $op ($self.opcode & 0x00FF) as u8;
+            $self.pc += 2;
+        };
+        ($self:expr, $op:tt, $left:expr, $right:expr) => {
+            $self.g_reg[$left as usize] $op $self.g_reg[$right as usize];
+            $self.pc += 2;
+        };
+    }
 
     pub struct Chip8 {
         opcode: u16,
@@ -137,6 +146,14 @@ pub mod chip_8 {
             }
         }
 
+        fn set_register_on_borrow(&mut self, left: u16, right: u16) {
+            if self.g_reg[left as usize] > self.g_reg[right as usize] {
+                self.g_reg[0xF] = 0;
+            } else {
+                self.g_reg[0xF] = 1;
+            }
+        }
+
         pub fn cycle(&mut self) {
             // Fetch self.opcode
             self.opcode = (self.memory[self.pc as usize] as u16) << 8
@@ -164,91 +181,71 @@ pub mod chip_8 {
                             self.pc += 2; // Don't forget to increase the program counter!
                         }
                         _ => {
-                            println!("Unknown self.opcode [0x0000]=> {}", self.opcode);
+                            println!("Unknown opcode [0x0000]=> {}", self.opcode);
                         }
                     }
                 }
-
                 0x1000 => {
                     // 0x1NNN=>{ Jumps to address NN=>{
                     self.pc = self.opcode & 0x0FFF;
                 }
-
                 0x2000 => {
                     // 0x2NNN=>{ Calls subroutine at NNN=>{
                     self.stack[self.sp as usize] = self.pc; // Store current address in stack
                     self.sp += 1; // Increment stack pointer
                     self.pc = self.opcode & 0x0FFF; // Set the program counter to the address at NNN
                 }
-
                 0x3000 => {
                     // 0x3XNN=>{ Skips the next instruction if VX equals N=>{
                     skip_instruction!(self, ==, shr8);
                 }
-
                 0x4000 => {
                     // 0x4XNN=>{ Skips the next instruction if VX doesn't equal N=>{
                     skip_instruction!(self, !=, shr8);
                 }
                 0x5000 => {
                     // 0x5XY0=>{ Skips the next instruction if VX equals VY=>{
-                    skip_instruction4!(self, ==, shr8, shr4);
+                    skip_instruction!(self, ==, shr8, shr4);
                 }
                 0x6000 => {
                     // 0x6XNN=>{ Sets VX to NN=>{
-                    self.g_reg[shr8 as usize] = (self.opcode & 0x00FF) as u8;
-                    self.pc += 2;
+                    update_register!(self, =, shr8);
                 }
                 0x7000 => {
                     // 0x7XNN=>{ Adds NN to VX=>{
-                    self.g_reg[shr8 as usize] += (self.opcode & 0x00FF) as u8;
-                    self.pc += 2;
+                    update_register!(self, +=, shr8);
                 }
                 0x8000 => {
                     match self.opcode & 0x000F {
                         0x0000 => {
                             // 0x8XY0=>{ Sets VX to the value of self.g_reg=>{
-                            self.g_reg[shr8 as usize] = self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            update_register!(self, =, shr8, shr4);
                         }
                         0x0001 => {
                             // 0x8XY1=>{ Sets VX to "VX OR VY=>{
-                            self.g_reg[shr8 as usize] |= self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            update_register!(self, |=, shr8, shr4);
                         }
                         0x0002 => {
                             // 0x8XY2=>{ Sets VX to "VX AND VY=>{
-                            self.g_reg[shr8 as usize] &= self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            update_register!(self, &=, shr8, shr4);
                         }
                         0x0003 => {
                             // 0x8XY3=>{ Sets VX to "VX XOR VY=>{
-                            self.g_reg[shr8 as usize] ^= self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            update_register!(self, ^=, shr8, shr4);
                         }
                         0x0004 => {
                             // 0x8XY4=>{ Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn'=>{
                             if self.g_reg[shr4 as usize] > (0xFF - self.g_reg[shr8 as usize]) {
                                 self.g_reg[0xF] = 1;
-                            }
-                            //carry
-                            else {
+                            } else {
                                 self.g_reg[0xF] = 0;
                             }
-                            self.g_reg[shr8 as usize] += self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            update_register!(self, +=, shr8, shr4);
                         }
                         0x0005 => {
                             // 0x8XY5=>{ VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn'=>{
-                            if self.g_reg[shr4 as usize] > self.g_reg[shr8 as usize] {
-                                self.g_reg[0xF] = 0;
-                            }
-                            // there is a borrow
-                            else {
-                                self.g_reg[0xF] = 1;
-                            }
-                            self.g_reg[shr8 as usize] -= self.g_reg[shr4 as usize];
-                            self.pc += 2;
+                            self.set_register_on_borrow(shr4, shr8);
+                            update_register!(self, -=, shr8, shr4);
                         }
                         0x0006 => {
                             // 0x8XY6=>{ Shifts VX right by one. VF is set to the value of the least significant bit of VX before the shif=>{
@@ -258,12 +255,7 @@ pub mod chip_8 {
                         }
                         0x0007 => {
                             // 0x8XY7=>{ Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn'=>{
-                            if self.g_reg[shr8 as usize] > self.g_reg[shr4 as usize] {
-                                // VY-VX
-                                self.g_reg[0xF] = 0; // there is a borrow
-                            } else {
-                                self.g_reg[0xF] = 1;
-                            }
+                            self.set_register_on_borrow(shr8, shr4);
                             self.g_reg[shr8 as usize] =
                                 self.g_reg[shr4 as usize] - self.g_reg[shr8 as usize];
                             self.pc += 2;
@@ -275,14 +267,13 @@ pub mod chip_8 {
                             self.pc += 2;
                         }
                         _ => {
-                            println!("Unknown self.opcode [0x8000]=> {}", self.opcode);
+                            println!("Unknown opcode [0x8000]=> {}", self.opcode);
                         }
                     }
                 }
-
                 0x9000 => {
                     // 0x9XY0=>{ Skips the next instruction if VX doesn't equal self.g_reg=>{
-                    skip_instruction4!(self, !=, shr8, shr4);
+                    skip_instruction!(self, !=, shr8, shr4);
                 }
                 0xA000 => {
                     // ANNN=>{ Sets I to the address NN=>{
@@ -306,21 +297,23 @@ pub mod chip_8 {
                     // VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn,
                     // and to 0 if that doesn't happen
 
-                    let x: u16 = self.g_reg[shr8 as usize] as u16;
-                    let y: u16 = self.g_reg[shr4 as usize] as u16;
-                    let height: u16 = (self.opcode & 0x000F) as u16;
-                    let mut pixel: u16;
+                    let x = self.g_reg[shr8 as usize] as u16;
+                    let y = self.g_reg[shr4 as usize] as u16;
+                    let height = (self.opcode & 0x000F) as u16;
 
                     self.g_reg[0xF] = 0;
+
                     for yline in 0..height {
-                        pixel = self.memory[(self.ir + yline) as usize] as u16;
+                        let pixel = self.memory[(self.ir + yline) as usize] as u16;
                         for xline in 0..8 {
                             if (pixel & (0x80 >> xline)) != 0 {
                                 let index = (x + xline + ((y + yline) * 64)) as usize;
-                                if self.gfx[index] == 1 {
-                                    self.g_reg[0xF] = 1;
+                                if index < self.gfx.len() {
+                                    if self.gfx[index] == 1 {
+                                        self.g_reg[0xF] = 1;
+                                    }
+                                    self.gfx[index] ^= 1;
                                 }
-                                self.gfx[index] ^= 1;
                             }
                         }
                     }
@@ -328,7 +321,6 @@ pub mod chip_8 {
                     self.draw_flag = true;
                     self.pc += 2;
                 }
-
                 0xE000 => {
                     match self.opcode & 0x00FF {
                         0x009E => {
@@ -340,7 +332,7 @@ pub mod chip_8 {
                             skip_instruction_key_press!(self, ==, shr8);
                         }
                         _ => {
-                            println!("Unknown self.opcode [0xE000]=> {}", self.opcode);
+                            println!("Unknown opcode [0xE000]=> {}", self.opcode);
                         }
                     }
                 }
@@ -407,7 +399,6 @@ pub mod chip_8 {
                                 (self.g_reg[shr8 as usize] % 100) % 10;
                             self.pc += 2;
                         }
-
                         0x0055 => {
                             // FX55=>{ Stores V0 to VX in memory starting at address =>{
                             for i in 0..=shr8 {
@@ -428,14 +419,13 @@ pub mod chip_8 {
                             self.ir += shr8 + 1u16;
                             self.pc += 2;
                         }
-
                         _ => {
-                            println!("Unknown self.opcode [0xF000]=> {}", self.opcode);
+                            println!("Unknown opcode [0xF000]=> {}", self.opcode);
                         }
                     }
                 }
                 _ => {
-                    println!("Unknown self.opcode: {}", self.opcode);
+                    println!("Unknown opcode: {}", self.opcode);
                 }
             }
 
@@ -452,7 +442,7 @@ pub mod chip_8 {
             }
         }
 
-        pub fn update_quads(&mut self, canvas: &mut Canvas<Window>) {
+        pub fn update_quads(&self, canvas: &mut Canvas<Window>) {
             canvas.set_draw_color(sdl2::pixels::Color::BLACK);
 
             let size = canvas.window().size();
