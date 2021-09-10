@@ -2,7 +2,7 @@
 name = "emulator_chip8"
 version = "0.1.0"
 edition = "2021"
-author = "robert azzopardi"
+author = ["robert azzopardi"]
 
 # See more keys and their defnewions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
