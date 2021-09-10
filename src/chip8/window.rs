@@ -1,5 +1,5 @@
 pub mod window_driver {
-    use crate::processor::chip_8::Chip8;
+    use crate::chip8::processor::chip::Chip8;
     use sdl2::{event::Event, keyboard::Keycode, render::Canvas, video::Window, EventPump, Sdl};
 
     pub struct Win {

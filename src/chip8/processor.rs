@@ -1,4 +1,4 @@
-pub mod chip_8 {
+pub mod chip {
     use rand::Rng;
     use sdl2::{keyboard::Keycode, rect::Rect, render::Canvas, video::Window};
     use std::fs;
@@ -42,16 +42,9 @@ pub mod chip_8 {
         Keycode::V,
     ];
 
-    macro_rules! skip_instruction {
-        ($self:expr, $op:tt, $sh:expr) => {
-            if $self.g_reg[$sh as usize] $op ($self.opcode & 0x00FF) as u8 {
-                $self.pc += 4;
-            } else {
-                $self.pc += 2;
-            }
-        };
-        ($self:expr, $op:tt, $sh8:expr, $sh4:expr) => {
-            if $self.g_reg[$sh8 as usize] $op $self.g_reg[$sh4 as usize] {
+    macro_rules! check_expr {
+        ($self:expr, $bool_expr:expr) => {
+            if $bool_expr {
                 $self.pc += 4;
             } else {
                 $self.pc += 2;
@@ -59,13 +52,18 @@ pub mod chip_8 {
         };
     }
 
+    macro_rules! skip_instruction {
+        ($self:expr, $op:tt, $sh:expr) => {
+            check_expr!($self, $self.g_reg[$sh as usize] $op ($self.opcode & 0x00FF) as u8);
+        };
+        ($self:expr, $op:tt, $sh8:expr, $sh4:expr) => {
+            check_expr!($self, $self.g_reg[$sh8 as usize] $op $self.g_reg[$sh4 as usize]);
+        };
+    }
+
     macro_rules! skip_instruction_key_press {
         ($self:expr, $op:tt, $sh8:expr) => {
-            if $self.key[($self.g_reg[$sh8 as usize]) as usize] $op 0 {
-                $self.pc += 4;
-            } else {
-                $self.pc += 2;
-            }
+            check_expr!($self, $self.key[($self.g_reg[$sh8 as usize]) as usize] $op 0);
         };
     }
 

@@ -1,5 +1,5 @@
 pub mod audio_driver {
-    use crate::processor::chip_8::Chip8;
+    use crate::chip8::processor::chip::Chip8;
     use sdl2::{
         audio::{AudioCallback, AudioDevice, AudioSpecDesired},
         AudioSubsystem,
