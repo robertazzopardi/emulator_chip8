@@ -7,12 +7,9 @@ pub mod emulator_driver {
         audio::audio_driver::Audio, processor::chip::Chip8, window::window_driver::Win,
     };
 
-    pub fn start() -> Result<(), String> {
-        let args = &env::args().collect::<Vec<String>>();
-        if args.len() == 1 {
-            return Err("Please provide a rom to run!".to_string());
-        }
+    pub const NAME: &str = "CHIP 8";
 
+    pub fn start(rom_path: Option<&str>) -> Result<(), String> {
         let sdl_context = sdl2::init()?;
 
         let audio_device = Audio::new(&sdl_context.audio()?);
@@ -20,8 +17,18 @@ pub mod emulator_driver {
         let mut window = Win::new(&sdl_context)?;
 
         let mut chip8 = Chip8::new();
-        chip8.load(&args[1])?;
 
+        if let Some(path) = rom_path {
+            chip8.load(path)?;
+        } else {
+            let args = &mut env::args().collect::<Vec<String>>();
+            if args.len() == 1 {
+                return Err("Please provide a rom to run!".to_string());
+            }
+            chip8.load(&args[1])?
+        }
+
+        // TODO: move to window.rs
         while window.is_running() {
             window.handle_events(&mut chip8);
 
