@@ -135,9 +135,7 @@ pub mod chip {
 
         pub fn load(&mut self, path: &str) -> Result<(), String> {
             let data = fs::read(path);
-            // if data.is_err() {
-            //     return Err("No such file or directory".to_string());
-            // }
+
             let data = match data {
                 Ok(_) => data.unwrap(),
                 Err(_) => return Err("No such file or directory".to_string()),

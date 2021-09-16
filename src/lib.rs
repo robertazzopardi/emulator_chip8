@@ -4,23 +4,14 @@ pub mod emulator_driver {
     use crate::chip8::{
         audio::audio_driver::Audio, processor::chip::Chip8, window::window_driver::Win,
     };
-    use sdl2::Sdl;
     use std::env;
 
     pub const NAME: &str = "CHIP 8";
 
-    pub fn start(rom_path: Option<&str>, sdl_context: Option<&Sdl>) -> Result<(), String> {
-        let audio_device: Audio;
-        let mut window: Win;
-
-        if let Some(context) = sdl_context {
-            audio_device = Audio::new(&context.audio()?);
-            window = Win::new(context)?;
-        } else {
-            let sdl_context = sdl2::init()?;
-            audio_device = Audio::new(&sdl_context.audio()?);
-            window = Win::new(&sdl_context)?;
-        }
+    pub fn start(rom_path: Option<&str>) -> Result<(), String> {
+        let sdl_context = sdl2::init()?;
+        let audio_device = Audio::new(&sdl_context.audio()?);
+        let mut window = Win::new(&sdl_context)?;
 
         let mut chip8 = Chip8::new();
 
